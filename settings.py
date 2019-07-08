@@ -10,4 +10,5 @@ with open('settings.json') as f:
 # characters database
 CHAR_DB = set_setting('char_db')
 LUA_PATHS = set_setting('lua_paths')
-FARMERS = set_setting('farmers')
+FARMERS_DB = set_setting('farmers_db')
+EXCEL_PATH = set_setting('excel_path')
