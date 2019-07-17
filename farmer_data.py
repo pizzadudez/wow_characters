@@ -35,11 +35,13 @@ class Farmer:
         self.account = data[2]
         self.char_class = data[3]
         self.intro_completed = None
+        self.max_riding = None
         self.professions = {}
         self.recipe_ranks = {}
 
     def update_info(self, data):
         self.intro_completed = data.get('introCompleted', None)
+        self.max_riding = data.get('maxRidingSkill', None)
         self.professions = {}
         for profession_id, rating in data.get('professions', None).items():
             if type(rating) is int:
@@ -85,7 +87,8 @@ class FarmerData:
                 Mining INTEGER,
                 "Zin'anthid" INTEGER,
                 "Osmenite Deposit" INTEGER,
-                "Osmenite Seam" INTEGER)""")
+                "Osmenite Seam" INTEGER,
+                max_riding INTEGER)""")
 
         self.farmers = farmer_objects_dict()
         self.accounts = account_objects_dict()
@@ -114,11 +117,12 @@ class FarmerData:
                       farmer.professions.get(2565, None),
                       farmer.recipe_ranks.get("Zin'anthid", None),
                       farmer.recipe_ranks.get('Osmenite Deposit', None),
-                      farmer.recipe_ranks.get('Osmenite Seam', None),)
+                      farmer.recipe_ranks.get('Osmenite Seam', None),
+                      1 if farmer.max_riding else 0,)
             c.execute("""INSERT INTO farmers
                     (name, realm, account, class, intro_complete, Herbalism, Mining,
-                    "Zin'anthid", "Osmenite Deposit", "Osmenite Seam")
-                    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    "Zin'anthid", "Osmenite Deposit", "Osmenite Seam", max_riding)
+                    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     values)
         conn.commit()
         conn.close()
@@ -151,12 +155,15 @@ class FarmerData:
                     zin = db_row[7] or 0
                     os_deposit = db_row[8] or 0
                     os_seam = db_row[9] or 0
+                    max_riding = True if db_row[10] == 1 else False
 
                     cell_bold = False if char_class == 'dh' else True
                     cell_underline = 'single' if char_class == 'dh' else 'none'
                     cell_color = "000000"
 
-                    if zin == 3 and os_deposit == 3 and os_seam == 3:
+                    if intro_complete and not max_riding:
+                        cell_color = "ff26ff"
+                    elif zin == 3 and os_deposit == 3 and os_seam == 3:
                         cell_color = "14ccf5"
                     elif zin == 3 and os_deposit > 1 and os_seam > 1:
                         cell_color = "872bff"
