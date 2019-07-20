@@ -9,6 +9,8 @@ with open('settings.json') as f:
 
 # characters database
 CHAR_DB = set_setting('char_db')
+REALMS = set_setting('realms')
+AUCTIONS = set_setting('auctions')
 LUA_PATHS = set_setting('lua_paths')
 FARMERS_DB = set_setting('farmers_db')
 EXCEL_PATH = set_setting('excel_path')

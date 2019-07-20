@@ -1,5 +1,6 @@
 import json
 import os
+import pandas as pd
 import sqlite3
 import time
 
@@ -51,7 +52,28 @@ class Farmer:
             self.recipe_ranks[recipe] = rank
 
 
-class FarmerData:
+class RealmData:
+    def __init__(self, data):
+        self.name = data[0]
+        self.slug = data[1]
+        self.code = data[2]
+        self.last_update = data[3]
+        self.seller_name = data[4]
+        self.seller_name_realm = '-'.join((self.seller_name, self.name.replace(' ', '')))
+        self.seller_name_realm_with_spaces = '-'.join((self.seller_name, self.name))
+
+        self.inventory = {}
+
+    def update_inventory(self, auctions, inventory):
+        for item_id, qty in inventory.items():
+            self.inventory[item_id] = self.inventory.get(item_id, {})
+            self.inventory[item_id]['bags'] = self.inventory[item_id].get('bags', 0) + qty
+        for item_id, qty in auctions.items():
+            self.inventory[item_id] = self.inventory.get(item_id, {})
+            self.inventory[item_id]['ah'] = self.inventory[item_id].get('ah', 0) + qty
+
+
+class WowData:
     def __init__(self):
         def farmer_objects_dict():
             conn = sqlite3.connect(CHAR_DB)
@@ -59,9 +81,11 @@ class FarmerData:
             c.execute("""SELECT name, realm, account, class FROM char_db
                     WHERE role=? AND (type!=? or type IS NULL)""",
                     ('farmer', 'inactive'))
+            rows = c.fetchall()
+            conn.close()
 
             farmers = {}
-            for row in c.fetchall():
+            for row in rows:
                 name_realm = '-'.join((row[0], row[1]))
                 farmers[name_realm] = Farmer(row)
             return farmers
@@ -89,9 +113,22 @@ class FarmerData:
                 "Osmenite Deposit" INTEGER,
                 "Osmenite Seam" INTEGER,
                 max_riding INTEGER)""")
+            conn.close()
+
+        def realms_inventory():
+            realms = {}
+            conn = sqlite3.connect(REALMS)
+            c = conn.cursor()
+            c.execute("SELECT name, slug, code, last_update, seller FROM realms")
+            for data in c.fetchall():
+                realms[data[0]] = RealmData(data)
+
+            conn.close()
+            return realms
 
         self.farmers = farmer_objects_dict()
         self.accounts = account_objects_dict()
+        self.realms = realms_inventory()
         create_output_db()
 
     def update_farmers(self):
@@ -181,12 +218,59 @@ class FarmerData:
                     cell.font = Font(color=cell_color, bold=cell_bold, underline=cell_underline)
 
         wb.save(EXCEL_PATH)
+        conn.close()
+    
+    def update_realms_inventory(self):
+        """Get inventory info for each realm"""
+
+        # Get auctions from MyAH_data_parser auctions DB
+        auctions = {}
+        conn = sqlite3.connect(AUCTIONS)
+        c = conn.cursor()
+        for realm in self.realms.values():
+            auctions[realm.name] = {}
+            c.execute("""SELECT item_id, quantity, stack_size FROM auction_chunks WHERE (
+                    realm=? AND owner LIKE ?)""", (realm.name, realm.seller_name + '%'))
+            for chunk in c.fetchall():
+                auctions[realm.name][chunk[0]] = chunk[1] * chunk[2]
+        conn.close()
         
+        # Get inventory data from Multiboxer_Data (multiple chars on multiple accounts)
+        inventory = {}
+        for acc_data in self.accounts.values():
+            for realm_name, realm_data in acc_data.realms.items():
+                if realm_data['inventoryData']:
+                    inventory[realm_name] = inventory.get(realm_name, {})
+                    for char_inventory in realm_data['inventoryData'].values():
+                        for item_id, quantity in char_inventory.items():
+                            inventory[realm_name][item_id] = inventory[realm_name].get(item_id, 0) + quantity
+        
+        # Update RealmData objects with inventory and auction info
+        for realm in self.realms.values():
+            realm.update_inventory(auctions.get(realm.name, {}), inventory.get(realm.name, {}))
+
+
+def pandas_inventory(wd, item_id):
+    inventory_list = []
+    for realm, realm_data in wd.realms.items():
+        item_data = realm_data.inventory.get(item_id, {})
+        bags = item_data.get('bags', 0) // 200
+        ah = item_data.get('ah', 0) // 200
+        total = bags + ah
+        inventory_list.append((realm, total, ah, bags))
+
+    sorted_list = sorted(inventory_list, key=lambda x: x[1], reverse=True)
+    df = pd.DataFrame(sorted_list, columns=['realm', 'total', 'ah', 'bags'])
+    print(df)
+
 
 if __name__ == '__main__':
-    fdata = FarmerData()
-    fdata.update_farmers()
-    fdata.write_farmers_db()
-    fdata.write_excel_table()
-
-    print('success')
+    wd = WowData()
+    #wd.update_farmers()
+    #wd.write_farmers_db()
+    #wd.write_excel_table()
+    wd.update_realms_inventory()
+    pandas_inventory(wd, 168487)
+    
+    
+    input('\nPress any key to exit')
