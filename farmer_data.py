@@ -93,7 +93,8 @@ class WowData:
         def account_objects_dict():
             accounts = {}
             for acc_number, path in LUA_PATHS.items():
-                accounts[int(acc_number)] = AccData(path)
+                file_path = path + '\\' + LUA_FILES['Data']
+                accounts[int(acc_number)] = AccData(file_path)
             return accounts  
 
         def create_output_db():
