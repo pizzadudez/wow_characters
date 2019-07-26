@@ -13,27 +13,39 @@ from settings import *
 
 class AccData:
     def __init__(self, path):
-        def table_to_dict():
+        def table_to_dict(path, string_to_remove):
             """Decodes lua SavedVariables table as dict."""
             if not os.path.exists(path):
                 return {}
             data = {}
             with open(path, encoding="ISO-8859-1") as file:
                 if file:
-                    data = lua.decode(file.read().replace('Multiboxer_DataDB = ', ''))
+                    data = lua.decode(file.read().replace(string_to_remove, ''))
                     return data
 
+        data = {} # container for saved_var dicts 
+        for name, info in LUA_FILES.items():
+            file_path = path + '\\' + info['file_name']
+            data[name] = table_to_dict(file_path, info['string_to_remove'])
+
         self.path = path
-        data = table_to_dict()
-        self.characters = data['charData']
-        self.realms = data['realmData']
+        self.characters = data['Data']['charData']
+        self.realms = data['Data']['realmData']
+        self.accounting = data['Accounting']
 
 
-class Farmer:
+class Character:
+    def __init__(self, name, realm, account):
+        self.name = name
+        self.realm = realm
+        self.account = account
+        self.name_realm_with_spaces = '-'.join((self.name, self.realm))
+        self.name_realm = self.name_realm_with_spaces.replace(' ', '')
+
+
+class Farmer(Character):
     def __init__(self, data):
-        self.name = data[0]
-        self.realm = data[1]
-        self.account = data[2]
+        super().__init__(data[0], data[1], data[2])
         self.char_class = data[3]
         self.intro_completed = None
         self.max_riding = None
@@ -50,6 +62,16 @@ class Farmer:
         self.recipe_ranks = {}
         for recipe, rank in data.get('recipeRanks', None).items():
             self.recipe_ranks[recipe] = rank
+
+
+class Banker(Character):
+    def __init__(self, data):
+        super().__init__(data[0], data[1], data[2])
+        self.bank_number = 0 if data[3] == 'deposit' else int(data[3].replace('gbank', ''))
+        self.bank_gold = None
+
+    def update_info(self, money):
+        self.bank_gold = money // 10000 if money else None
 
 
 class RealmData:
@@ -90,11 +112,25 @@ class WowData:
                 farmers[name_realm] = Farmer(row)
             return farmers
 
+        def banker_objects_dict():
+            conn = sqlite3.connect(CHAR_DB)
+            c = conn.cursor()
+            c.execute("""SELECT name, realm, account, type FROM char_db
+                      WHERE role=?""",
+                      ('banker', ))
+            rows = c.fetchall()
+            conn.close()
+
+            bankers = {}
+            for row in rows:
+                banker = Banker(row)
+                bankers[banker.name_realm_with_spaces] = banker
+            return bankers
+
         def account_objects_dict():
             accounts = {}
             for acc_number, path in LUA_PATHS.items():
-                file_path = path + '\\' + LUA_FILES['Data']
-                accounts[int(acc_number)] = AccData(file_path)
+                accounts[int(acc_number)] = AccData(path)
             return accounts  
 
         def create_output_db():
@@ -128,6 +164,7 @@ class WowData:
             return realms
 
         self.farmers = farmer_objects_dict()
+        self.bankers = banker_objects_dict()
         self.accounts = account_objects_dict()
         self.realms = realms_inventory()
         create_output_db()
@@ -250,6 +287,38 @@ class WowData:
         for realm in self.realms.values():
             realm.update_inventory(auctions.get(realm.name, {}), inventory.get(realm.name, {}))
 
+    def update_bankers(self):
+        """doc"""
+        for banker in self.bankers.values():
+            accounting_data = self.accounts[banker.account].accounting
+            bank_gold = accounting_data.get(banker.realm, {}).get(banker.name, {}).get('money', {}).get('guild', None)
+            banker.update_info(bank_gold)
+
+    def bankers_excel(self):
+        conn = sqlite3.connect(CHAR_DB)
+        c = conn.cursor()
+
+        wb = load_workbook(EXCEL_PATH, read_only=False, keep_vba=True)
+        ws = wb["Bankers"]
+
+        for account in range(10):
+            c.execute("""SELECT name, realm FROM char_db
+                      WHERE role=? AND account=? AND type LIKE ?
+                      ORDER BY id ASC""",
+                      ('banker', account, 'gbank%'))
+            rows = c.fetchall()
+            for position, row in enumerate(rows):
+                banker = self.bankers.get('-'.join((row[0], row[1])), None)
+                cell = ws.cell(row=account+1, column=position+1)
+                cell.value = banker.name
+                if banker.bank_gold == 9_999_999:
+                    cell.font = Font(color="fc0303", bold=True)
+                elif not banker.bank_gold:
+                    cell.font = Font(color="03befc", bold=False)
+
+        conn.close()
+        wb.save(EXCEL_PATH)
+
 
 def pandas_inventory(wd, item_id):
     inventory_list = []
@@ -267,11 +336,15 @@ def pandas_inventory(wd, item_id):
 
 if __name__ == '__main__':
     wd = WowData()
-    #wd.update_farmers()
-    #wd.write_farmers_db()
-    #wd.write_excel_table()
+
+    # wd.update_farmers()
+    # wd.write_farmers_db()
+    # wd.write_excel_table()
+
     wd.update_realms_inventory()
     pandas_inventory(wd, 168487)
     
+    # wd.update_bankers()
+    # wd.bankers_excel()
     
     input('\nPress any key to exit')
