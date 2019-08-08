@@ -18,7 +18,7 @@ class AccData:
             if not os.path.exists(path):
                 return {}
             data = {}
-            with open(path, encoding="ISO-8859-1") as file:
+            with open(path, encoding="utf-8") as file:
                 if file:
                     data = lua.decode(file.read().replace(string_to_remove, ''))
                     return data
@@ -341,8 +341,8 @@ if __name__ == '__main__':
     # wd.write_farmers_db()
     # wd.write_excel_table()
 
-    wd.update_realms_inventory()
-    pandas_inventory(wd, 168487)
+    # wd.update_realms_inventory()
+    # pandas_inventory(wd, 168487)
     
     # wd.update_bankers()
     # wd.bankers_excel()
