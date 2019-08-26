@@ -258,7 +258,7 @@ class WowData:
         wb.save(EXCEL_PATH)
         conn.close()
     
-    def update_realms_inventory(self):
+    def update_realms_inventory(self, addon_data=False):
         """Get inventory info for each realm"""
 
         # Get auctions from MyAH_data_parser auctions DB
@@ -282,7 +282,20 @@ class WowData:
                     for char_inventory in realm_data['inventoryData'].values():
                         for item_id, quantity in char_inventory.items():
                             inventory[realm_name][item_id] = inventory[realm_name].get(item_id, 0) + quantity
+
+        # Get auction data from Multiboxer_data (in case BLIZZ API is down)
+        addon_auctions = {}
+        for acc_data in self.accounts.values():
+            for realm_name, realm_data in acc_data.realms.items():
+                if realm_data['auctionData']:
+                    addon_auctions[realm_name] = addon_auctions.get(realm_name, {})
+                    for char_auctions in realm_data['auctionData'].values():
+                        for item_id, quantity in char_auctions.items():
+                            addon_auctions[realm_name][item_id] = addon_auctions[realm_name].get(item_id, 0) + quantity
         
+        # use game auctions data if api is down
+        auctions = addon_auctions if addon_data else auctions
+
         # Update RealmData objects with inventory and auction info
         for realm in self.realms.values():
             realm.update_inventory(auctions.get(realm.name, {}), inventory.get(realm.name, {}))
@@ -341,10 +354,15 @@ if __name__ == '__main__':
     # wd.write_farmers_db()
     # wd.write_excel_table()
 
-    # wd.update_realms_inventory()
-    # pandas_inventory(wd, 168487)
+    wd.update_realms_inventory(addon_data=True)
+    pandas_inventory(wd, 168487)
     
     # wd.update_bankers()
     # wd.bankers_excel()
+
+    # total_g = 0
+    # for banker in wd.bankers.values():
+    #     total_g = total_g + (banker.bank_gold or 0)
+    # print(total_g)
     
     input('\nPress any key to exit')

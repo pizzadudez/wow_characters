@@ -23,6 +23,19 @@ def create_table():
                  trade_timestamp INTEGER,
                  trade_confirmation INTEGER,
                  UNIQUE(name, realm))""")
+    c.execute("""CREATE TABLE IF NOT EXISTS realms (
+                 id INTEGER PRIMARY KEY,
+                 realm TEXT,
+                 code TEXT,
+                 price_per_mil INTEGER,
+                 UNIQUE(realm))""")
+    lower_price = ['Hyjal', 'Blackmoore', 'Blackrock', 'Antonidas', 'Archimonde', 'Blackhand']
+    for realm in wd.realms.values():
+        c.execute("""INSERT OR IGNORE INTO realms
+                     (realm, code, price_per_mil)
+                     VALUES(?, ?, ?)""",
+                     (realm.name, realm.code, 41 if realm.name in lower_price else 43))
+    conn.commit()
     conn.close()
 
 def update_table():
