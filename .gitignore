@@ -1,3 +1,5 @@
 __pycache__/
 output_files/
 settings.json
+banker_db_maker.py
+banker_db_public.py

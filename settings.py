@@ -1,9 +1,13 @@
 import json
+import os
+
+dirname = os.path.dirname(__file__)
+SETTINGS_FILE = os.path.join(dirname, 'settings.json')
 
 def set_setting(field):
     return settings['settings'].get(field, None) or settings['default_settings'].get(field, None)
     
-with open('settings.json') as f:
+with open(SETTINGS_FILE) as f:
     settings = json.load(f)
 
 

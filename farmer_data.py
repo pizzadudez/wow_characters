@@ -156,9 +156,9 @@ class WowData:
             realms = {}
             conn = sqlite3.connect(REALMS)
             c = conn.cursor()
-            c.execute("SELECT name, slug, code, last_update, seller FROM realms")
+            c.execute("SELECT name, slug, code, last_update FROM realms")
             for data in c.fetchall():
-                realms[data[0]] = RealmData(data)
+                realms[data[0]] = RealmData(data + ('placeholder', ))
 
             conn.close()
             return realms
@@ -268,7 +268,7 @@ class WowData:
         for realm in self.realms.values():
             auctions[realm.name] = {}
             c.execute("""SELECT item_id, quantity, stack_size FROM auction_chunks WHERE (
-                    realm=? AND owner LIKE ?)""", (realm.name, realm.seller_name + '%'))
+                    realm=?)""", (realm.name, ))
             for chunk in c.fetchall():
                 auctions[realm.name][chunk[0]] = chunk[1] * chunk[2]
         conn.close()
@@ -346,6 +346,18 @@ def pandas_inventory(wd, item_id):
     df = pd.DataFrame(sorted_list, columns=['realm', 'total', 'ah', 'bags'])
     print(df)
 
+def estimate(wd, item_id__price):
+    estimated_value = 0
+    for item_id, price in item_id__price.items():
+        for realm, realm_data in wd.realms.items():
+            item_data = realm_data.inventory.get(item_id, {})
+            bags = item_data.get('bags', 0)
+            ah = item_data.get('ah', 0)
+            total = bags + ah
+            estimated_value = estimated_value + price * total
+
+    print(f'estimated value: {estimated_value / 1_000_000}')
+
 
 if __name__ == '__main__':
     wd = WowData()
@@ -356,6 +368,15 @@ if __name__ == '__main__':
 
     wd.update_realms_inventory(addon_data=True)
     pandas_inventory(wd, 168487)
+    # pandas_inventory(wd, 152510)
+    # pandas_inventory(wd, 152505)
+
+    item_id__price = {
+        168487: 35,
+        152510: 75,
+        152505: 3
+    }
+    estimate(wd, item_id__price)
     
     # wd.update_bankers()
     # wd.bankers_excel()
