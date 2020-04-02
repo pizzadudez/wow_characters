@@ -20,10 +20,11 @@ class AccData:
             data = {}
             with open(path, encoding="utf-8") as file:
                 if file:
-                    data = lua.decode(file.read().replace(string_to_remove, ''))
+                    data = lua.decode(
+                        file.read().replace(string_to_remove, ''))
                     return data
 
-        data = {} # container for saved_var dicts 
+        data = {}  # container for saved_var dicts
         for name, info in LUA_FILES.items():
             file_path = path + '\\' + info['file_name']
             data[name] = table_to_dict(file_path, info['string_to_remove'])
@@ -67,7 +68,8 @@ class Farmer(Character):
 class Banker(Character):
     def __init__(self, data):
         super().__init__(data[0], data[1], data[2])
-        self.bank_number = 0 if data[3] == 'deposit' else int(data[3].replace('gbank', ''))
+        self.bank_number = 0 if data[3] == 'deposit' else int(
+            data[3].replace('gbank', ''))
         self.bank_gold = None
 
     def update_info(self, money):
@@ -81,18 +83,22 @@ class RealmData:
         self.code = data[2]
         self.last_update = data[3]
         self.seller_name = data[4]
-        self.seller_name_realm = '-'.join((self.seller_name, self.name.replace(' ', '')))
-        self.seller_name_realm_with_spaces = '-'.join((self.seller_name, self.name))
+        self.seller_name_realm = '-'.join((self.seller_name,
+                                           self.name.replace(' ', '')))
+        self.seller_name_realm_with_spaces = '-'.join(
+            (self.seller_name, self.name))
 
         self.inventory = {}
 
     def update_inventory(self, auctions, inventory):
         for item_id, qty in inventory.items():
             self.inventory[item_id] = self.inventory.get(item_id, {})
-            self.inventory[item_id]['bags'] = self.inventory[item_id].get('bags', 0) + qty
+            self.inventory[item_id]['bags'] = self.inventory[item_id].get(
+                'bags', 0) + qty
         for item_id, qty in auctions.items():
             self.inventory[item_id] = self.inventory.get(item_id, {})
-            self.inventory[item_id]['ah'] = self.inventory[item_id].get('ah', 0) + qty
+            self.inventory[item_id]['ah'] = self.inventory[item_id].get(
+                'ah', 0) + qty
 
 
 class WowData:
@@ -102,7 +108,7 @@ class WowData:
             c = conn.cursor()
             c.execute("""SELECT name, realm, account, class FROM char_db
                     WHERE role=? AND (type!=? or type IS NULL)""",
-                    ('farmer', 'inactive'))
+                      ('farmer', 'inactive'))
             rows = c.fetchall()
             conn.close()
 
@@ -131,11 +137,11 @@ class WowData:
             accounts = {}
             for acc_number, path in LUA_PATHS.items():
                 accounts[int(acc_number)] = AccData(path)
-            return accounts  
+            return accounts
 
         def create_output_db():
             """write doc"""
-            
+
             conn = sqlite3.connect(FARMERS_DB)
             c = conn.cursor()
             c.execute("""CREATE TABLE IF NOT EXISTS farmers (
@@ -174,7 +180,9 @@ class WowData:
         for acc_num in self.accounts.keys():
             char_list = self.accounts[acc_num].characters
             for full_name, char_data in char_list.items():
-                self.farmers[full_name].update_info(char_data)
+                farmer = self.farmers.get(full_name, None)
+                if farmer:
+                    farmer.update_info(char_data)
 
     def write_farmers_db(self):
         """write doc"""
@@ -198,30 +206,31 @@ class WowData:
                     (name, realm, account, class, intro_complete, Herbalism, Mining,
                     "Zin'anthid", "Osmenite Deposit", "Osmenite Seam", max_riding)
                     VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    values)
+                      values)
         conn.commit()
         conn.close()
 
     def write_excel_table(self):
         wb = load_workbook(EXCEL_PATH, read_only=False, keep_vba=True)
         ws = wb["Farming"]
-        selection = ws["B32:K57"]
+        selection = ws["B32:K67"]
 
         conn = sqlite3.connect(FARMERS_DB)
         c = conn.cursor()
 
-        realm_list = ['Kazzak', 'Twisting Nether', 'Silvermoon', 'Draenor', 'Tarren Mill', 'Ragnaros', 'Ravencrest', 'Argent Dawn', 'Sylvanas', 'Frostmane', 'Burning Blade', 'Blackmoore', 'Blackrock', 'Blackhand', 'Antonidas', 'Hyjal', 'Archimonde', 'Thrall', 'Eredar', 'Ysondre', 'Dalaran', 'Onyxia', 'Nefarian', 'The Maelstrom', 'Frostwolf', 'Aegwynn']
-        realm_codes = ['KZ','TN','SM','DR','TM','RG','RV','AD','SV','FM','BB','BM','BR','BH','AN','HJ','AR','TH','ER','YS','DL','ON','NF','MA','FW','AE']
+        realm_list = ['Kazzak', 'Twisting Nether', 'Silvermoon', 'Draenor', 'Tarren Mill', 'Ragnaros', 'Ravencrest', 'Argent Dawn', 'Sylvanas', 'Frostmane', 'Burning Blade', 'Blackmoore',
+                      'Blackrock', 'Blackhand', 'Antonidas', 'Hyjal', 'Archimonde', 'Thrall', 'Eredar', 'Ysondre', 'Dalaran', 'Onyxia', 'Nefarian', 'The Maelstrom', 'Frostwolf', 'Aegwynn',
+                      'Elune', 'Sargeras', "Gul'dan", 'Stormreaver', 'Wildhammer', "Ahn'Qiraj", 'Defias Brotherhood', 'Magtheridon', 'Sanguino', "Pozzo dell'Eternità"]
         row_offset = 32
         col_offset = 2
 
         for row in selection:
             for cell in row:
                 c.execute("SELECT * FROM farmers WHERE realm=? AND account=?",
-                        (realm_list[cell.row - row_offset], cell.col_idx - col_offset))
+                          (realm_list[cell.row - row_offset], cell.col_idx - col_offset))
                 db_row = c.fetchone()
                 if db_row:
-                    cell.value = realm_codes[cell.row - row_offset]
+                    cell.value = self.realms[realm_list[cell.row - row_offset]].code
                     # char info
                     char_class = db_row[3]
                     intro_complete = True if db_row[4] == 1 else False
@@ -236,28 +245,37 @@ class WowData:
                     cell_underline = 'single' if char_class == 'dh' else 'none'
                     cell_color = "000000"
 
-                    if intro_complete and not max_riding:
-                        cell_color = "ff26ff"
-                    elif zin == 3 and os_deposit == 3 and os_seam == 3:
-                        cell_color = "14ccf5"
-                    elif zin == 3 and os_deposit > 1 and os_seam > 1:
-                        cell_color = "872bff"
-                    elif zin == 3 and mining_rating >= 140:
-                        cell_color = "1dde26"
-                    elif zin == 3 and mining_rating < 140:
-                        cell_color = "f54242"
-                    elif zin == 2:
-                        cell_color = "ff9412"
-                    elif intro_complete == 1:
-                        cell_color = "000000"
-                    elif intro_complete == 0:
+                    # if intro_complete and not max_riding:
+                    #     cell_color = "ff26ff"
+                    # elif zin == 3 and os_deposit == 3 and os_seam == 3:
+                    #     cell_color = "14ccf5"
+                    # elif zin == 3 and os_deposit > 1 and os_seam > 1:
+                    #     cell_color = "872bff"
+                    # elif zin == 3 and mining_rating >= 140:
+                    #     cell_color = "1dde26"
+                    # elif zin == 3 and mining_rating < 140:
+                    #     cell_color = "f54242"
+                    # elif zin == 2:
+                    #     cell_color = "ff9412"
+                    # elif intro_complete == 1:
+                    #     cell_color = "000000"
+                    # elif intro_complete == 0:
+                    #     cell_color = "b8b8b8"
+
+                    if intro_complete:
+                        if zin == 3:
+                            cell_color = "14ccf5"
+                        elif zin == 2:
+                            cell_color = "1dde26"
+                    else:
                         cell_color = "b8b8b8"
 
-                    cell.font = Font(color=cell_color, bold=cell_bold, underline=cell_underline)
+                    cell.font = Font(color=cell_color,
+                                     bold=cell_bold, underline=cell_underline)
 
         wb.save(EXCEL_PATH)
         conn.close()
-    
+
     def update_realms_inventory(self, addon_data=False):
         """Get inventory info for each realm"""
 
@@ -272,7 +290,7 @@ class WowData:
             for chunk in c.fetchall():
                 auctions[realm.name][chunk[0]] = chunk[1] * chunk[2]
         conn.close()
-        
+
         # Get inventory data from Multiboxer_Data (multiple chars on multiple accounts)
         inventory = {}
         for acc_data in self.accounts.values():
@@ -281,30 +299,35 @@ class WowData:
                     inventory[realm_name] = inventory.get(realm_name, {})
                     for char_inventory in realm_data['inventoryData'].values():
                         for item_id, quantity in char_inventory.items():
-                            inventory[realm_name][item_id] = inventory[realm_name].get(item_id, 0) + quantity
+                            inventory[realm_name][item_id] = inventory[realm_name].get(
+                                item_id, 0) + quantity
 
         # Get auction data from Multiboxer_data (in case BLIZZ API is down)
         addon_auctions = {}
         for acc_data in self.accounts.values():
             for realm_name, realm_data in acc_data.realms.items():
                 if realm_data['auctionData']:
-                    addon_auctions[realm_name] = addon_auctions.get(realm_name, {})
+                    addon_auctions[realm_name] = addon_auctions.get(
+                        realm_name, {})
                     for char_auctions in realm_data['auctionData'].values():
                         for item_id, quantity in char_auctions.items():
-                            addon_auctions[realm_name][item_id] = addon_auctions[realm_name].get(item_id, 0) + quantity
-        
+                            addon_auctions[realm_name][item_id] = addon_auctions[realm_name].get(
+                                item_id, 0) + quantity
+
         # use game auctions data if api is down
         auctions = addon_auctions if addon_data else auctions
 
         # Update RealmData objects with inventory and auction info
         for realm in self.realms.values():
-            realm.update_inventory(auctions.get(realm.name, {}), inventory.get(realm.name, {}))
+            realm.update_inventory(auctions.get(
+                realm.name, {}), inventory.get(realm.name, {}))
 
     def update_bankers(self):
         """doc"""
         for banker in self.bankers.values():
             accounting_data = self.accounts[banker.account].accounting
-            bank_gold = accounting_data.get(banker.realm, {}).get(banker.name, {}).get('money', {}).get('guild', None)
+            bank_gold = accounting_data.get(banker.realm, {}).get(
+                banker.name, {}).get('money', {}).get('guild', None)
             banker.update_info(bank_gold)
 
     def bankers_excel(self):
@@ -346,6 +369,7 @@ def pandas_inventory(wd, item_id):
     df = pd.DataFrame(sorted_list, columns=['realm', 'total', 'ah', 'bags'])
     print(df)
 
+
 def estimate(wd, item_id__price):
     estimated_value = 0
     for item_id, price in item_id__price.items():
@@ -377,7 +401,7 @@ if __name__ == '__main__':
         152505: 3
     }
     estimate(wd, item_id__price)
-    
+
     # wd.update_bankers()
     # wd.bankers_excel()
 
@@ -385,5 +409,5 @@ if __name__ == '__main__':
     # for banker in wd.bankers.values():
     #     total_g = total_g + (banker.bank_gold or 0)
     # print(total_g)
-    
+
     input('\nPress any key to exit')
