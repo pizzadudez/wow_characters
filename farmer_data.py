@@ -211,26 +211,26 @@ class WowData:
         conn.close()
 
     def write_excel_table(self):
+        realm_list = ['Kazzak', 'Twisting Nether', 'Silvermoon', 'Draenor', 'Tarren Mill', 'Ragnaros', 'Ravencrest', 'Argent Dawn', 'Sylvanas', 'Frostmane', 'Burning Blade', 'Blackmoore',
+                      'Blackrock', 'Blackhand', 'Antonidas', 'Hyjal', 'Archimonde', 'Thrall', 'Eredar', 'Ysondre', 'Dalaran', 'Onyxia', 'Nefarian', 'The Maelstrom', 'Frostwolf', 'Aegwynn',
+                      'Elune', 'Sargeras', "Gul'dan", 'Stormreaver', 'Wildhammer', "Ahn'Qiraj", 'Defias Brotherhood', 'Magtheridon', 'Sanguino', "Pozzo dell'Eternità"]
+
         wb = load_workbook(EXCEL_PATH, read_only=False, keep_vba=True)
-        ws = wb["Farming"]
-        selection = ws["B32:K67"]
+        ws = wb["Python"]
+        _range = "A1:K{0}".format(len(realm_list))
+        selection = ws[_range]
 
         conn = sqlite3.connect(FARMERS_DB)
         c = conn.cursor()
 
-        realm_list = ['Kazzak', 'Twisting Nether', 'Silvermoon', 'Draenor', 'Tarren Mill', 'Ragnaros', 'Ravencrest', 'Argent Dawn', 'Sylvanas', 'Frostmane', 'Burning Blade', 'Blackmoore',
-                      'Blackrock', 'Blackhand', 'Antonidas', 'Hyjal', 'Archimonde', 'Thrall', 'Eredar', 'Ysondre', 'Dalaran', 'Onyxia', 'Nefarian', 'The Maelstrom', 'Frostwolf', 'Aegwynn',
-                      'Elune', 'Sargeras', "Gul'dan", 'Stormreaver', 'Wildhammer', "Ahn'Qiraj", 'Defias Brotherhood', 'Magtheridon', 'Sanguino', "Pozzo dell'Eternità"]
-        row_offset = 32
-        col_offset = 2
-
-        for row in selection:
+        for index, row in enumerate(selection):
+            realm = self.realms[realm_list[index]]
             for cell in row:
+                cell.value = None  # Clear
                 c.execute("SELECT * FROM farmers WHERE realm=? AND account=?",
-                          (realm_list[cell.row - row_offset], cell.col_idx - col_offset))
+                          (realm.name, cell.col_idx - 1))
                 db_row = c.fetchone()
                 if db_row:
-                    cell.value = self.realms[realm_list[cell.row - row_offset]].code
                     # char info
                     char_class = db_row[3]
                     intro_complete = True if db_row[4] == 1 else False
@@ -241,8 +241,10 @@ class WowData:
                     os_seam = db_row[9] or 0
                     max_riding = True if db_row[10] == 1 else False
 
+                    cell.value = realm.code if char_class != 'dh' else realm.code + '*'
+
                     cell_bold = False if char_class == 'dh' else True
-                    cell_underline = 'single' if char_class == 'dh' else 'none'
+                    # cell_underline = 'single' if char_class == 'dh' else 'none'
                     cell_color = "000000"
 
                     # if intro_complete and not max_riding:
@@ -264,14 +266,18 @@ class WowData:
 
                     if intro_complete:
                         if zin == 3:
-                            cell_color = "14ccf5"
+                            if char_class == 'dh':
+                                cell_color = "6a29e3"
+                            else:
+                                cell_color = "c65911"
+
                         elif zin == 2:
                             cell_color = "1dde26"
                     else:
                         cell_color = "b8b8b8"
 
                     cell.font = Font(color=cell_color,
-                                     bold=cell_bold, underline=cell_underline)
+                                     bold=cell_bold, underline='none')
 
         wb.save(EXCEL_PATH)
         conn.close()
